@@ -45,6 +45,6 @@ export interface AppConfig {
   maintenanceMode: boolean;
   featureVoice: boolean;
   featureImage: boolean;
-  geminiKey: string;
+  geminiKeys: string[]; // Changed to array for multiple keys
   deepseekKey: string; 
 }

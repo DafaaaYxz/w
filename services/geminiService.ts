@@ -1,45 +1,56 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-// Lazy initialization variable
-let aiInstance: GoogleGenAI | null = null;
+// Store the pool of available keys
+let keyPool: string[] = [];
 
-// SAFELY access process.env to prevent "process is not defined" crashes in browser
-const getApiKey = () => {
+// Fallback to process.env if no keys provided in config
+const getEnvKey = () => {
     try {
-        // Check standard process.env (handled by Vite or Polyfill)
         if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
             return process.env.API_KEY;
         }
-    } catch (e) {
-        // Ignore error
-    }
-    return ''; // Return empty string instead of placeholder to let SDK handle validation later if needed
-};
-
-// Helper to get or create the AI client safely
-const getAiClient = () => {
-    if (!aiInstance) {
-        const key = getApiKey();
-        if (!key) {
-            console.warn("Gemini API Key is missing. AI features will fail.");
-            // We still return an instance, but it might fail on generation.
-            // Using a dummy key to prevent constructor crash if SDK requires string
-            aiInstance = new GoogleGenAI({ apiKey: 'MISSING_KEY' }); 
-        } else {
-            aiInstance = new GoogleGenAI({ apiKey: key });
+        // Fallback for window.process polyfill
+        if ((window as any).process?.env?.API_KEY) {
+            return (window as any).process.env.API_KEY;
         }
+    } catch (e) {
+        // Ignore
     }
-    return aiInstance;
+    return '';
 };
 
-export const initializeGemini = (apiKey: string) => {
-  console.log("Gemini API initialized with provided key.");
-  // Re-initialize with new key if provided explicitly
-  try {
-      aiInstance = new GoogleGenAI({ apiKey });
-  } catch (e) {
-      console.error("Failed to re-initialize Gemini:", e);
-  }
+// Initialize or update the key pool
+export const initializeGemini = (apiKeys: string[]) => {
+    // Sanitize keys: Trim whitespace, remove empty strings
+    const sanitizedKeys = apiKeys
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+    
+    keyPool = sanitizedKeys;
+    
+    console.log(`[GeminiService] Initialized with ${keyPool.length} active keys.`);
+};
+
+// Get a client instance using a random key from the pool
+const getAiClient = () => {
+    let selectedKey = '';
+
+    if (keyPool.length > 0) {
+        // Simple rotation: Pick random key to distribute load
+        const randomIndex = Math.floor(Math.random() * keyPool.length);
+        selectedKey = keyPool[randomIndex];
+    } else {
+        // Try fallback
+        selectedKey = getEnvKey();
+    }
+
+    if (!selectedKey) {
+        throw new Error("No Valid API Keys Available. Please configure keys in Admin Panel.");
+    }
+
+    // Return new instance with the selected key
+    return new GoogleGenAI({ apiKey: selectedKey });
 };
 
 export const generateResponse = async (
@@ -57,7 +68,7 @@ export const generateResponse = async (
       const cleanBase64 = base64Image.split(',')[1];
       parts.unshift({
         inlineData: {
-          mimeType: 'image/jpeg', // Assuming jpeg for simplicity, or detect from string
+          mimeType: 'image/jpeg', 
           data: cleanBase64
         }
       });
@@ -78,6 +89,15 @@ export const generateResponse = async (
     return response.text || "No response generated.";
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    return `System Failure: ${error.message || "Unknown error occurred."}`;
+    
+    // enhance error message for UI
+    let msg = error.message || "Unknown error occurred.";
+    if (msg.includes("400") || msg.includes("INVALID_ARGUMENT")) {
+        msg = "API Key Invalid or Expired (400). Check Admin Config.";
+    } else if (msg.includes("429")) {
+        msg = "Rate Limit Exceeded (429). Rotating keys...";
+    }
+    
+    return `System Failure: ${msg}`;
   }
 };

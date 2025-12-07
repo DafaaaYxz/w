@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Screen, UserAccount, AppConfig, Testimonial } from '../types';
 import { fetchUsers, createUser, removeUser, supabase } from '../services/supabaseClient';
@@ -23,6 +24,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newUser, setNewUser] = useState({ username: '', aiName: 'CentralGPT', devName: 'XdpzQ' });
   const [generatedKey, setGeneratedKey] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // API Manager State
+  const [inputKey, setInputKey] = useState('');
 
   // Testi Upload State
   const [newTestiText, setNewTestiText] = useState('');
@@ -84,8 +88,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleApiUpdate = () => {
-    alert('API Configuration Saved. (Note: Environment Key prioritized in Preview Mode)');
+  const handleAddKey = () => {
+    if (!inputKey.trim()) return;
+    // Add new key to the array
+    const newKeys = [...config.geminiKeys, inputKey.trim()];
+    setConfig({ ...config, geminiKeys: newKeys });
+    setInputKey('');
+  };
+
+  const handleRemoveKey = (index: number) => {
+    const newKeys = [...config.geminiKeys];
+    newKeys.splice(index, 1);
+    setConfig({ ...config, geminiKeys: newKeys });
   };
 
   const handleTestiImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,31 +184,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         case 'API':
             return (
                 <div className="space-y-6 animate-fade-in">
-                    <h3 className="font-pixel text-central-accent text-lg border-b border-gray-700 pb-2">API MANAGER</h3>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-xs font-mono text-gray-400 mb-1 block">GEMINI API KEY</label>
+                    <h3 className="font-pixel text-central-accent text-lg border-b border-gray-700 pb-2">API KEY ROTATION POOL</h3>
+                    <div className="bg-black/40 border border-gray-700 p-4 mb-4">
+                        <p className="text-xs text-gray-400 font-mono mb-2">
+                            Add multiple Gemini Keys. The system will randomly rotate between them to avoid Rate Limits.
+                        </p>
+                        <div className="flex gap-2">
                             <input 
-                                type="password"
-                                className="w-full bg-black/50 border border-gray-600 p-3 text-white font-mono focus:border-central-accent outline-none"
-                                value={config.geminiKey}
-                                onChange={e => setConfig({...config, geminiKey: e.target.value})}
-                                placeholder="sk-..."
+                                type="text"
+                                className="flex-1 bg-black/50 border border-gray-600 p-3 text-white font-mono focus:border-central-accent outline-none text-xs"
+                                value={inputKey}
+                                onChange={e => setInputKey(e.target.value)}
+                                placeholder="Paste API Key here (sk-...)"
                             />
+                            <button 
+                                onClick={handleAddKey}
+                                className="bg-green-700 text-white px-4 font-pixel text-[10px] hover:bg-green-600 border border-green-900"
+                            >
+                                ADD
+                            </button>
                         </div>
-                        <div>
-                            <label className="text-xs font-mono text-gray-400 mb-1 block">DEEPSEEK API KEY</label>
-                            <input 
-                                type="password"
-                                className="w-full bg-black/50 border border-gray-600 p-3 text-white font-mono focus:border-central-accent outline-none"
-                                value={config.deepseekKey}
-                                onChange={e => setConfig({...config, deepseekKey: e.target.value})}
-                                placeholder="sk-..."
-                            />
-                        </div>
-                        <button onClick={handleApiUpdate} className="w-full bg-gray-800 text-white p-3 font-pixel text-xs pixel-border hover:bg-gray-700">
-                            SAVE CONFIGURATION
-                        </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scroll">
+                        {config.geminiKeys.map((key, idx) => (
+                            <div key={idx} className="flex justify-between items-center bg-gray-900/50 p-2 border-l-2 border-central-accent">
+                                <div className="font-mono text-xs text-gray-300">
+                                    {key.substring(0, 8)}...{key.substring(key.length - 6)}
+                                </div>
+                                <button 
+                                    onClick={() => handleRemoveKey(idx)}
+                                    className="text-red-500 hover:text-white text-[10px] font-pixel border border-transparent hover:border-red-500 px-2"
+                                >
+                                    DELETE
+                                </button>
+                            </div>
+                        ))}
+                        {config.geminiKeys.length === 0 && (
+                            <div className="text-center text-gray-600 font-mono text-xs py-4">
+                                NO KEYS CONFIGURED. SYSTEM WILL ATTEMPT TO USE ENV KEY.
+                            </div>
+                        )}
                     </div>
                 </div>
             );

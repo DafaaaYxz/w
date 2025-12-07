@@ -1,4 +1,4 @@
-import React, { useState, ErrorInfo } from 'react';
+import React, { useState, ErrorInfo, useEffect, Component } from 'react';
 import { Screen, UserAccount, AppConfig, Testimonial, ChatHistoryItem } from './types';
 import { MOCK_TESTIMONIALS } from './constants';
 import BootSequence from './components/BootSequence';
@@ -11,8 +11,7 @@ import AdminPanel from './screens/AdminPanel';
 import Testimonials from './screens/Testimonials';
 import About from './screens/About';
 import History from './screens/History';
-// Removed initializeGemini to comply with API key guidelines
-// import { initializeGemini } from './services/geminiService';
+import { initializeGemini } from './services/geminiService';
 
 // --- ERROR BOUNDARY COMPONENT ---
 interface ErrorBoundaryProps {
@@ -24,8 +23,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// Fix: Use React.Component to ensure props are correctly typed and accessible
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     public state: ErrorBoundaryState = {
         hasError: false,
         error: null
@@ -87,9 +85,15 @@ const AppContent: React.FC = () => {
     maintenanceMode: false,
     featureVoice: false,
     featureImage: true,
-    geminiKey: '',
+    geminiKeys: [], // Initialize with empty array
     deepseekKey: ''
   });
+
+  // Sync config with services when it changes
+  useEffect(() => {
+    // Only initialize if we have keys or explicitly want to refresh
+    initializeGemini(config.geminiKeys);
+  }, [config.geminiKeys]);
 
   const handleBootComplete = () => {
     // Always go to Home after boot to ensure clean state
@@ -101,11 +105,6 @@ const AppContent: React.FC = () => {
         setCurrentUser(null); 
     } else {
         setCurrentUser(user);
-        
-        // Removed manual key initialization to comply with guidelines
-        // if (config.geminiKey) {
-        //     initializeGemini(config.geminiKey);
-        // }
     }
   };
 
