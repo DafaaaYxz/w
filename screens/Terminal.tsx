@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { UserAccount, ChatMessage, Screen, ChatHistoryItem } from '../types';
 import { PERSONA_TEMPLATE, DEV_INFO_TEMPLATE } from '../constants';
 import { generateResponse } from '../services/geminiService';
+import { fetchChatHistory, saveChatLog } from '../services/supabaseClient';
 
 interface TerminalProps {
   currentUser: UserAccount | null;
@@ -25,14 +26,54 @@ const Terminal: React.FC<TerminalProps> = ({ currentUser, onNavigate, config, on
   const [isThinking, setIsThinking] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
   
   // State for Script Viewer Modal
   const [viewingScript, setViewingScript] = useState<{title: string, lang: string, code: string} | null>(null);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Initial connection message
+  // 1. Initial Load: Get Previous Chat from Database
   useEffect(() => {
+    const loadHistory = async () => {
+        if (!currentUser || isHistoryLoaded) return;
+
+        const dbHistory = await fetchChatHistory(currentUser.username);
+        
+        const restoredMessages: ChatMessage[] = [];
+        
+        // Add initial system message if empty
+        const devName = currentUser?.devName || 'XdpzQ';
+        const aiName = currentUser?.aiName || 'CentralGPT';
+        
+        restoredMessages.push({
+            role: 'model',
+            text: `Connection established with ${aiName}. Dev: ${devName}. Identity verified: ${currentUser?.username || 'GUEST'}. Perintah lo apa?`,
+            timestamp: Date.now()
+        });
+
+        // Convert DB format (Pairs) to ChatMessage linear format
+        dbHistory.forEach(item => {
+            // User Part
+            restoredMessages.push({
+                role: 'user',
+                text: item.userMessage,
+                // If item.image is a base64 string, restoring it might be heavy, but we can try
+                image: (item as any).image || undefined, 
+                timestamp: parseInt(item.id) || Date.now() // Fallback
+            });
+            // AI Part
+            restoredMessages.push({
+                role: 'model',
+                text: item.aiResponse,
+                timestamp: parseInt(item.id) + 1 || Date.now()
+            });
+        });
+
+        setMessages(restoredMessages);
+        setIsHistoryLoaded(true);
+    };
+
     if (config.maintenanceMode) {
       setMessages([{
         role: 'system',
@@ -40,15 +81,9 @@ const Terminal: React.FC<TerminalProps> = ({ currentUser, onNavigate, config, on
         timestamp: Date.now()
       }]);
     } else {
-        const devName = currentUser?.devName || 'XdpzQ';
-        const aiName = currentUser?.aiName || 'CentralGPT';
-        setMessages([{
-            role: 'model',
-            text: `Connection established with ${aiName}. Dev: ${devName}. Identity verified: ${currentUser?.username || 'GUEST'}. Perintah lo apa?`,
-            timestamp: Date.now()
-        }]);
+        loadHistory();
     }
-  }, [config.maintenanceMode, currentUser]);
+  }, [config.maintenanceMode, currentUser, isHistoryLoaded]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -140,6 +175,7 @@ const Terminal: React.FC<TerminalProps> = ({ currentUser, onNavigate, config, on
 
     const aiName = currentUser?.aiName || 'CentralGPT';
     const devName = currentUser?.devName || 'XdpzQ';
+    const userName = currentUser?.username || 'GUEST';
     
     const persona = PERSONA_TEMPLATE
       .replace(/{{AI_NAME}}/g, aiName)
@@ -159,15 +195,17 @@ const Terminal: React.FC<TerminalProps> = ({ currentUser, onNavigate, config, on
                 timestamp: Date.now()
             }]);
             
-            // Log to History
-            onAddToHistory({
+            // Log to History & DB
+            const logItem: ChatHistoryItem = {
                 id: Date.now().toString(),
-                username: currentUser?.username || 'GUEST',
+                username: userName,
                 aiName: aiName,
                 userMessage: userMsg.text,
                 aiResponse: responseText,
                 timestamp: new Date().toLocaleTimeString()
-            });
+            };
+            onAddToHistory(logItem);
+            saveChatLog(userName, aiName, userMsg.text, responseText, userMsg.image);
 
             setIsThinking(false);
          }, 800);
@@ -186,15 +224,18 @@ const Terminal: React.FC<TerminalProps> = ({ currentUser, onNavigate, config, on
         timestamp: Date.now()
       }]);
 
-      // Log to History
-      onAddToHistory({
+      // Log to History & DB
+      const logItem: ChatHistoryItem = {
         id: Date.now().toString(),
-        username: currentUser?.username || 'GUEST',
+        username: userName,
         aiName: aiName,
         userMessage: userMsg.text,
         aiResponse: responseText,
         timestamp: new Date().toLocaleTimeString()
-      });
+      };
+      onAddToHistory(logItem);
+      // Persist to Supabase
+      saveChatLog(userName, aiName, userMsg.text, responseText, userMsg.image);
 
     } catch (error) {
       setMessages(prev => [...prev, {
@@ -274,7 +315,7 @@ const Terminal: React.FC<TerminalProps> = ({ currentUser, onNavigate, config, on
                 ? 'bg-gray-800/50 border-gray-600 text-gray-200' 
                 : msg.role === 'system'
                     ? 'bg-red-900/30 border-red-500 text-red-400 font-bold'
-                    : 'bg-transparent border-none text-gray-200 pl-0' /* Changed text-green-400 to text-gray-200 for better aesthetic */
+                    : 'bg-transparent border-none text-gray-200 pl-0'
             }`}>
               {msg.image && (
                 <img src={msg.image} alt="upload" className="max-w-[200px] h-auto mb-2 border border-gray-600 rounded" />

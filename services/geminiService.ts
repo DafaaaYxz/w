@@ -32,25 +32,9 @@ export const initializeGemini = (apiKeys: string[]) => {
     console.log(`[GeminiService] Initialized with ${keyPool.length} active keys.`);
 };
 
-// Get a client instance using a random key from the pool
-const getAiClient = () => {
-    let selectedKey = '';
-
-    if (keyPool.length > 0) {
-        // Simple rotation: Pick random key to distribute load
-        const randomIndex = Math.floor(Math.random() * keyPool.length);
-        selectedKey = keyPool[randomIndex];
-    } else {
-        // Try fallback
-        selectedKey = getEnvKey();
-    }
-
-    if (!selectedKey) {
-        throw new Error("No Valid API Keys Available. Please configure keys in Admin Panel.");
-    }
-
-    // Return new instance with the selected key
-    return new GoogleGenAI({ apiKey: selectedKey });
+// Helper: Get a client for a specific key
+const createClientForKey = (key: string) => {
+    return new GoogleGenAI({ apiKey: key });
 };
 
 export const generateResponse = async (
@@ -58,46 +42,79 @@ export const generateResponse = async (
   systemInstruction: string,
   base64Image?: string
 ): Promise<string> => {
-  try {
-    const ai = getAiClient();
-    
+    // 1. Prepare Content Parts
     const parts: any[] = [{ text: prompt }];
-
     if (base64Image) {
-      // Remove data URL prefix if present for proper base64 extraction
-      const cleanBase64 = base64Image.split(',')[1];
-      parts.unshift({
-        inlineData: {
-          mimeType: 'image/jpeg', 
-          data: cleanBase64
+        const cleanBase64 = base64Image.split(',')[1];
+        parts.unshift({
+            inlineData: {
+                mimeType: 'image/jpeg', 
+                data: cleanBase64
+            }
+        });
+    }
+
+    // 2. Determine Keys to use
+    // If we have a pool, copy it so we can iterate. If not, use fallback env key.
+    let availableKeys = keyPool.length > 0 ? [...keyPool] : [getEnvKey()];
+    // Shuffle keys for randomness (Fisher-Yates)
+    for (let i = availableKeys.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [availableKeys[i], availableKeys[j]] = [availableKeys[j], availableKeys[i]];
+    }
+
+    // Remove empty keys
+    availableKeys = availableKeys.filter(k => k && k.length > 10);
+
+    if (availableKeys.length === 0) {
+        return "System Failure: No Valid API Keys Configuration Found.";
+    }
+
+    // 3. Retry Loop (Smart Key Rotation)
+    let lastError: any = null;
+
+    for (const apiKey of availableKeys) {
+        try {
+            const ai = createClientForKey(apiKey);
+            
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: {
+                    role: 'user',
+                    parts: parts
+                },
+                config: {
+                    systemInstruction: systemInstruction,
+                    temperature: 0.9,
+                }
+            });
+
+            // If successful, return immediately
+            return response.text || "No response generated.";
+
+        } catch (error: any) {
+            lastError = error;
+            const msg = error.message || "";
+            
+            // Check if we should retry with next key
+            const isRetryable = msg.includes("429") || msg.includes("400") || msg.includes("Quota") || msg.includes("limit");
+            
+            if (isRetryable) {
+                console.warn(`[Gemini] Key failed (${msg}). Rotating to next key...`);
+                continue; // Try next iteration of loop
+            } else {
+                // If it's a different error (e.g. invalid prompt), throw it or stop
+                console.error("[Gemini] Non-retryable error:", error);
+                break; 
+            }
         }
-      });
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: {
-        role: 'user',
-        parts: parts
-      },
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.9,
-      }
-    });
-
-    return response.text || "No response generated.";
-  } catch (error: any) {
-    console.error("Gemini Error:", error);
+    // 4. All attempts failed
+    console.error("Gemini All Keys Failed:", lastError);
+    let errorMsg = lastError?.message || "Unknown error";
+    if (errorMsg.includes("429")) return "System Failure: All Neural Nodes Overloaded (429). Try again later.";
+    if (errorMsg.includes("400")) return "System Failure: Invalid Key Configuration (400).";
     
-    // enhance error message for UI
-    let msg = error.message || "Unknown error occurred.";
-    if (msg.includes("400") || msg.includes("INVALID_ARGUMENT")) {
-        msg = "API Key Invalid or Expired (400). Check Admin Config.";
-    } else if (msg.includes("429")) {
-        msg = "Rate Limit Exceeded (429). Rotating keys...";
-    }
-    
-    return `System Failure: ${msg}`;
-  }
+    return `System Failure: ${errorMsg}`;
 };

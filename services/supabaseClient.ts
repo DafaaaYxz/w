@@ -1,10 +1,10 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { UserAccount, AppConfig } from '../types';
+import { UserAccount, AppConfig, ChatHistoryItem } from '../types';
 
 // Hardcoded credentials
-const SUPABASE_URL = "https://srlirbbortnluolscsre.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNybGlyYmJvcnRubHVvbHNjc3JlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODUyOTgsImV4cCI6MjA4MDY2MTI5OH0.IEyd1lmxfYMQDXYS7ecSvEPTAohW6D7JEIYJvF7xwyg";
+const SUPABASE_URL = "https://ofeefzeruufyooggaule.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mZWVmemVydXVmeW9vZ2dhdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNDA1NDAsImV4cCI6MjA4MDYxNjU0MH0.-pdG7Ji5eSFEnzGpqpmcv_oTlQEz6EceUBtO2QHdfao";
 
 let client: SupabaseClient | null = null;
 
@@ -186,4 +186,55 @@ export const removeUser = async (id: string): Promise<boolean> => {
     if (!supabase) return false;
     const { error } = await supabase.from('users').delete().eq('id', id);
     return !error;
+};
+
+// --- CHAT PERSISTENCE ---
+
+export const fetchChatHistory = async (username: string): Promise<ChatHistoryItem[]> => {
+  if (!supabase) return [];
+  // Fetch last 50 messages for this user
+  const { data, error } = await supabase
+    .from('chat_history')
+    .select('*')
+    .eq('username', username)
+    .order('created_at', { ascending: true })
+    .limit(50);
+
+  if (error || !data) return [];
+  
+  return data.map((item: any) => ({
+    id: item.id,
+    username: item.username,
+    aiName: item.ai_name,
+    userMessage: item.user_message,
+    aiResponse: item.ai_response,
+    image: item.image_data, // Ensure this maps correctly if added to schema
+    timestamp: item.timestamp
+  }));
+};
+
+export const saveChatLog = async (
+  username: string, 
+  aiName: string, 
+  userMsg: string, 
+  aiResp: string, 
+  image?: string
+): Promise<boolean> => {
+  if (!supabase) return false;
+  
+  const payload = {
+    username: username,
+    ai_name: aiName,
+    user_message: userMsg,
+    ai_response: aiResp,
+    image_data: image || null,
+    timestamp: new Date().toLocaleTimeString()
+  };
+
+  const { error } = await supabase.from('chat_history').insert([payload]);
+  if (error) {
+    console.error("Failed to save chat log:", error);
+    return false;
+  }
+  return true;
 };
