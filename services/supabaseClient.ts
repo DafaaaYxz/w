@@ -3,8 +3,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { UserAccount, AppConfig } from '../types';
 
 // Hardcoded credentials
-const SUPABASE_URL = "https://ofeefzeruufyooggaule.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mZWVmemVydXVmeW9vZ2dhdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNDA1NDAsImV4cCI6MjA4MDYxNjU0MH0.-pdG7Ji5eSFEnzGpqpmcv_oTlQEz6EceUBtO2QHdfao";
+const SUPABASE_URL = "https://srlirbbortnluolscsre.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNybGlyYmJvcnRubHVvbHNjc3JlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODUyOTgsImV4cCI6MjA4MDY2MTI5OH0.IEyd1lmxfYMQDXYS7ecSvEPTAohW6D7JEIYJvF7xwyg";
 
 let client: SupabaseClient | null = null;
 
