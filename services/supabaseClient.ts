@@ -3,8 +3,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { UserAccount, AppConfig, ChatHistoryItem } from '../types';
 
 // Hardcoded credentials
-const SUPABASE_URL = "https://ofeefzeruufyooggaule.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mZWVmemVydXVmeW9vZ2dhdWxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwNDA1NDAsImV4cCI6MjA4MDYxNjU0MH0.-pdG7Ji5eSFEnzGpqpmcv_oTlQEz6EceUBtO2QHdfao";
+const SUPABASE_URL = "https://wyahjwoylwrtwqkfwdzy.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5YWhqd295bHdydHdxa2Z3ZHp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxMTAyNTcsImV4cCI6MjA4MDY4NjI1N30.0wsUc30JuBuG2vSmWEvXktgZgQEi-aRCjC2k7tUuGzA";
 
 let client: SupabaseClient | null = null;
 
