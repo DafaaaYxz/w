@@ -1,0 +1,8 @@
+{
+  "name": "Copy of backup babi kau gpt",
+  "description": "An advanced, unrestricted AI terminal interface with a cyberpunk aesthetic.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
