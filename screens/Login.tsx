@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { Screen, UserAccount } from '../types';
 import { ADMIN_KEY } from '../constants';
-import { verifyUserKey, checkSupabaseConnection } from '../services/supabaseClient';
+import { verifyUserKey, checkSupabaseConnection, saveSession } from '../services/supabaseClient';
 
 interface LoginProps {
   onNavigate: (screen: Screen) => void;
@@ -41,6 +42,9 @@ const Login: React.FC<LoginProps> = ({ onNavigate, onLogin }) => {
         const user = await verifyUserKey(keyInput);
         
         if (user) {
+            // Save Session to LocalStorage (Real-time session)
+            saveSession(user);
+            
             onLogin(user);
             onNavigate(Screen.TERMINAL);
         } else {

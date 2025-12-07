@@ -12,6 +12,7 @@ import Testimonials from './screens/Testimonials';
 import About from './screens/About';
 import History from './screens/History';
 import { initializeGemini } from './services/geminiService';
+import { fetchAppConfig, getSession, clearSession } from './services/supabaseClient';
 
 // --- ERROR BOUNDARY COMPONENT ---
 interface ErrorBoundaryProps {
@@ -24,10 +25,13 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    public state: ErrorBoundaryState = {
-        hasError: false,
-        error: null
-    };
+    constructor(props: ErrorBoundaryProps) {
+        super(props);
+        this.state = {
+            hasError: false,
+            error: null
+        };
+    }
 
     static getDerivedStateFromError(error: Error): ErrorBoundaryState {
         return { hasError: true, error };
@@ -48,15 +52,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                         <div className="bg-black border border-red-900/50 p-4 mb-4 whitespace-pre-wrap text-left text-[10px] md:text-xs font-mono text-red-400 overflow-x-auto">
                             {this.state.error?.toString()}
                         </div>
-                        
-                        {this.state.error?.stack && (
-                            <details className="text-left mb-6">
-                                <summary className="cursor-pointer text-gray-500 text-xs hover:text-white mb-2">[VIEW STACK TRACE]</summary>
-                                <pre className="text-[10px] text-gray-600 overflow-auto max-h-40 p-2 bg-black/50 border border-gray-800">
-                                    {this.state.error?.stack}
-                                </pre>
-                            </details>
-                        )}
                         
                         <button 
                             onClick={() => window.location.reload()}
@@ -85,19 +80,46 @@ const AppContent: React.FC = () => {
     maintenanceMode: false,
     featureVoice: false,
     featureImage: true,
-    geminiKeys: [], // Initialize with empty array
+    geminiKeys: [], 
     deepseekKey: ''
   });
 
-  // Sync config with services when it changes
+  // 1. Initial Load: Get Session (LocalStorage) & Config (Supabase)
   useEffect(() => {
-    // Only initialize if we have keys or explicitly want to refresh
-    initializeGemini(config.geminiKeys);
+    const loadSystem = async () => {
+        // A. Load Config from DB (Real-time data)
+        const remoteConfig = await fetchAppConfig();
+        if (remoteConfig) {
+            console.log("Remote Config Loaded:", remoteConfig);
+            setConfig(prev => ({ ...prev, ...remoteConfig }));
+        }
+
+        // B. Check for existing session (LocalStorage)
+        const storedSession = getSession();
+        if (storedSession) {
+            console.log("Restoring session for:", storedSession.username);
+            setCurrentUser(storedSession);
+        }
+    };
+
+    loadSystem();
+  }, []);
+
+  // 2. Sync Gemini Keys when config changes
+  useEffect(() => {
+    if (config.geminiKeys && config.geminiKeys.length > 0) {
+        console.log("Initializing Gemini with keys:", config.geminiKeys.length);
+        initializeGemini(config.geminiKeys);
+    }
   }, [config.geminiKeys]);
 
   const handleBootComplete = () => {
-    // Always go to Home after boot to ensure clean state
-    setCurrentScreen(Screen.HOME);
+    // If user was restored from session, go straight to Terminal, otherwise Home
+    if (currentUser) {
+        setCurrentScreen(Screen.TERMINAL);
+    } else {
+        setCurrentScreen(Screen.HOME);
+    }
   };
 
   const handleLogin = (user: UserAccount | 'ADMIN') => {
@@ -106,6 +128,12 @@ const AppContent: React.FC = () => {
     } else {
         setCurrentUser(user);
     }
+  };
+
+  const handleLogout = () => {
+      clearSession();
+      setCurrentUser(null);
+      setCurrentScreen(Screen.HOME);
   };
 
   const addToHistory = (item: ChatHistoryItem) => {
@@ -138,6 +166,7 @@ const AppContent: React.FC = () => {
                 setConfig={setConfig}
                 testimonials={testimonials}
                 setTestimonials={setTestimonials}
+                onLogout={handleLogout}
             />
         );
       case Screen.TESTIMONIALS:
@@ -168,6 +197,7 @@ const AppContent: React.FC = () => {
             currentScreen={currentScreen} 
             customTitle={navbarTitle}
             isLoggedIn={!!currentUser}
+            onLogout={handleLogout}
         />
       )}
       <main className="flex-1 flex flex-col relative w-full">
@@ -177,7 +207,6 @@ const AppContent: React.FC = () => {
   );
 };
 
-// --- APP WRAPPER ---
 const App: React.FC = () => {
     return (
         <ErrorBoundary>

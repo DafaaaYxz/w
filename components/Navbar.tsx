@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Screen } from '../types';
 
@@ -6,9 +7,10 @@ interface NavbarProps {
   currentScreen: Screen;
   customTitle?: string;
   isLoggedIn: boolean; // Prop to know if user is logged in
+  onLogout?: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentScreen, customTitle, isLoggedIn }) => {
+const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentScreen, customTitle, isLoggedIn, onLogout }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const renderLogo = () => {
@@ -96,6 +98,14 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentScreen, customTitle,
            >
              ABOUT
            </button>
+           {isLoggedIn && onLogout && (
+               <button 
+                 onClick={onLogout}
+                 className="text-xs md:text-sm font-bold font-pixel text-red-500 hover:text-red-400 transition-all border border-red-900 px-2"
+               >
+                 LOGOUT
+               </button>
+           )}
         </div>
 
         <div className="flex items-center gap-4 z-50 relative">
@@ -141,11 +151,20 @@ const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentScreen, customTitle,
                 active={currentScreen === Screen.TESTIMONIALS} 
                 onClick={() => handleMobileNav(Screen.TESTIMONIALS)} 
             />
-            {!isLoggedIn && (
+            {!isLoggedIn ? (
                  <MobileNavLink 
                     label="LOGIN SYSTEM" 
                     active={currentScreen === Screen.LOGIN} 
                     onClick={() => handleMobileNav(Screen.LOGIN)} 
+                />
+            ) : (
+                <MobileNavLink 
+                    label="LOGOUT" 
+                    active={false} 
+                    onClick={() => {
+                        if(onLogout) onLogout();
+                        setIsMobileMenuOpen(false);
+                    }} 
                 />
             )}
             
